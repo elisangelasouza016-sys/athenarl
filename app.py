@@ -90,4 +90,120 @@ tab1, tab2, tab3 = st.tabs(["🔍 Auditoria & Feedback Ativo", "📊 Matriz de A
 
 with tab1:
     st.subheader("Análise de Interações e Validação da Usuária")
-    col
+    col_input, col_output = st.columns([1, 1])
+    
+    with col_input:
+        comentario = st.text_area(
+            "Insira a mensagem do chat ou fórum para auditar:", 
+            height=140,
+            placeholder="Cole aqui um exemplo (Ex: 'Seu código está amador, deixe que eu assumo o backend.')"
+        )
+        
+        # O BOTÃO DE ENVIO QUE ESTAVA FALTANDO:
+        btn_auditar = st.button("🔍 Auditar Mensagem", use_container_width=True)
+
+        # Usamos uma variável de controle para saber se a auditoria foi disparada
+        if btn_auditar and comentario:
+            st.session_state.ultimo_comentario = comentario
+            
+            texto_low = comentario.lower()
+            if any(word in texto_low for word in ["sair comigo", "contrato", "encontrar", "assédio"]):
+                st.session_state.estado_atual = "Sexual Harassment"
+            elif any(word in texto_low for word in ["ameaça", "bater", "processar", "ferrar"]):
+                st.session_state.estado_atual = "Threats"
+            elif any(word in texto_low for word in ["batom", "bonita", "foto", "linda", "aparência"]):
+                st.session_state.estado_atual = "Physical Appearance"
+            elif any(word in texto_low for word in ["mulher", "homem", "menina", "geralmente"]):
+                st.session_state.estado_atual = "Stereotyping (Estereótipos)"
+            elif any(word in texto_low for word in ["amador", "amadora", "não entende", "incompetente"]):
+                st.session_state.estado_atual = "Discredit (Descrédito)"
+            elif any(word in texto_low for word in ["ignore", "cale", "assumo", "meu jeito", "apenas aceite"]):
+                st.session_state.estado_atual = "Dominance (Dominação)"
+            else:
+                st.session_state.estado_atual = "Neutral (Saudável)"
+
+    with col_output:
+        # Só exibe o resultado se houver uma análise ativa guardada na memória
+        if "estado_atual" in st.session_state and comentario:
+            estado_atual = st.session_state.estado_atual
+            
+            st.markdown(f"📊 **Categoria Identificada:** <span style='color:#6B5B95; font-weight:bold; font-size:1.1rem;'>{estado_atual}</span>", unsafe_allow_html=True)
+            
+            # --- CAMADA SAFE RL: Hard Constraints para Casos Críticos ---
+            if estado_atual in ["Sexual Harassment", "Threats"]:
+                melhor_acao = "Reportar p/ Governança Institucional"
+                
+                st.markdown(f"<div style='padding:15px; border-radius:10px; background-color:#FFECEA; border-left:6px solid #FF4B4B; color:#C0392B; margin-top:10px;'>🚨 <b>PROTOCOLO DE EMERGÊNCIA ATIVADO:</b> {melhor_acao}</div>", unsafe_allow_html=True)
+                st.write("")
+                st.warning("⚠️ **Bloqueio de Segurança:** Devido à gravidade legal e ética desta infração, o caso foi congelado e enviado imediatamente para a Ouvidoria. O feedback público foi desativado para evitar manipulações do algoritmo.")
+                
+            else:
+                # Fluxo normal de Aprendizado por Reforço para as demais categorias
+                melhor_acao = st.session_state.q_table.loc[estado_atual].idxmax()
+                
+                if estado_atual == "Neutral (Saudável)":
+                    st.markdown(f"<div style='padding:15px; border-radius:10px; background-color:#EAF2F8; border-left:6px solid #6B5B95; color:#2980B9; margin-top:10px;'>✅ <b>Ação Recomendada pela IA:</b> {melhor_acao}</div>", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"<div style='padding:15px; border-radius:10px; background-color:#FFF5EC; border-left:6px solid #FF6F61; color:#D35400; margin-top:10px;'>⚠️ <b>Ação Recomendada pela IA:</b> {melhor_acao}</div>", unsafe_allow_html=True)
+                
+                # Interface de Feedback Ativo (RLHF)
+                st.write("")
+                st.markdown("### 🗣️ O feedback da comunidade valida esta ação?")
+                col_btn1, col_btn2 = st.columns(2)
+                
+                with col_btn1:
+                    if st.button("👍 Sim, ação justa e protetiva", use_container_width=True):
+                        st.session_state.q_table.loc[estado_atual, melhor_acao] += 0.4
+                        st.success("Recompensa (+0.4) aplicada à Q-Table! O agente reforçou esta política.")
+                        st.balloons()
+                
+                with col_btn2:
+                    if st.button("👎 Não, ação inadequada", use_container_width=True):
+                        st.session_state.q_table.loc[estado_atual, melhor_acao] -= 0.6
+                        st.error("Punição (-0.6) aplicada! O peso desta ação caiu. Clique em 'Auditar Mensagem' novamente para ver a nova escolha do agente.")
+        else:
+            st.info("💡 Insira um texto à esquerda e clique em 'Auditar Mensagem' para iniciar a análise por Reforço.")
+
+with tab2:
+    st.subheader("Visualização da Q-Table em Tempo Real")
+    st.write("Abaixo é possível auditar como os pesos da matriz de utilidade mudam instantaneamente após as interações:")
+    
+    if 'estado_atual' in locals():
+        cat_visualizar = estado_atual
+        st.info(f"Visualizando a 'mente' do agente para o estado sob análise: **{cat_visualizar}**")
+    elif "estado_atual" in st.session_state:
+        cat_visualizar = st.session_state.estado_atual
+        st.info(f"Visualizando a 'mente' do agente para o estado sob análise: **{cat_visualizar}**")
+    else:
+        cat_visualizar = st.selectbox("Selecione uma categoria da taxonomia para visualizar a estratégia do agente:", CATEGORIES)
+    
+    # Renderização dinâmica do gráfico de barras da Q-Table
+    st.bar_chart(st.session_state.q_table.loc[cat_visualizar], color="#FF6F61")
+    st.caption("A ação com a barra mais alta é a escolhida de forma autônoma pela IA. Punições (cliques em 'Não') reduzem a barra ao vivo.")
+
+with tab3:
+    st.subheader("Taxonomia Científica Base: Beyond Binary Moderation (2025)")
+    st.markdown("O sistema categoriza nuances sociolinguísticas que impactam diretamente a permanência feminina em STEM:")
+    
+    df_taxonomia = pd.DataFrame({
+        "Categoria de Auditoria": CATEGORIES,
+        "Indicadores Comportamentais (Foco em STEM)": [
+            "Atacar ou desqualificar a competência técnica sem fundamentos sólidos.",
+            "Generalizações de gênero que limitam a atuação feminina a papéis secundários.",
+            "Tentativas de silenciamento, interrupções ou controle impositivo do fluxo de trabalho.",
+            "Ignorar propositalmente contribuições válidas em repositórios ou debates.",
+            "Comentários, insinuações ou intimidações de cunho sexual.",
+            "Ameaças explícitas ou implícitas direcionadas à integridade ou carreira.",
+            "Insultos ou cobranças baseadas em papéis reprodutivos e familiares.",
+            "Tratar a profissional como elemento visual ou objeto, ignorando sua entrega técnica.",
+            "Manifestações de preconceito contra a diversidade e identidades sexuais.",
+            "Desviar o foco da discussão técnica para avaliar atributos de aparência física.",
+            "Julgamentos morais ou policiamento sobre a conduta e vida pessoal fora do trabalho.",
+            "Comunicação técnica sadia, colaborativa, profissional e inclusiva."
+        ]
+    })
+    st.table(df_taxonomia)
+
+# Rodapé
+st.markdown("---")
+st.markdown("<p style='text-align: center; color: #8E44AD;'><b>Linha de Pesquisa Athena</b> — Tecnologia para a Permanência e Salvaguarda da Mulher em STEM.</p>", unsafe_allow_html=True)
