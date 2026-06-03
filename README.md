@@ -1,2 +1,3 @@
 # athenarl
-Combater as microagressões de gênero, o silenciamento e o descrédito técnico que historicamente impulsionam a evasão feminina na área da computação. O sistema atua como um escudo ativo, processando interações em tempo real e decidindo a ação de governança que maximiza a saúde e a segurança do ecossistema a longo prazo.
+sistema inteligente baseado em Aprendizado por Reforço capaz de aprender, a partir do feedback das usuárias, quais estratégias de apoio são mais eficazes para promover o pertencimento, o engajamento e a permanência de mulheres em ambientes STEM.
+
