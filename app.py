@@ -187,8 +187,7 @@ def calcular_recompensa_impacto(
     indicaria_athena=False,
     sentiu_exposicao=False,
     achou_inutil=False,
-    pretende_desistir=False,
-    bonus_permanencia=0
+    pretende_desistir=False
 ):
     recompensa = 0
 
@@ -215,8 +214,6 @@ def calcular_recompensa_impacto(
 
     if pretende_desistir:
         recompensa -= 5
-
-    recompensa += bonus_permanencia
 
     return recompensa
 
@@ -301,35 +298,54 @@ st.sidebar.markdown("**Apoio à permanência feminina em STEM**")
 
 st.sidebar.divider()
 
-st.sidebar.markdown("### 🔬 Modo acadêmico")
+st.sidebar.markdown("### 🔬 Parâmetros do Aprendizado")
 
 alpha = st.sidebar.slider(
-    "Alpha — taxa de aprendizado",
+    "Alpha (α) — taxa de aprendizado",
     0.01,
     1.00,
     DEFAULT_ALPHA,
     0.01
 )
 
+st.sidebar.info("""
+**Alpha (α)** controla o quanto a Athena aprende com cada nova experiência.
+
+Valores maiores fazem o sistema mudar mais rapidamente após uma avaliação.
+
+Valores menores tornam o aprendizado mais gradual e estável.
+""")
+
 gamma = st.sidebar.slider(
-    "Gamma — fator de desconto",
+    "Gamma (γ) — impacto futuro",
     0.00,
     1.00,
     DEFAULT_GAMMA,
     0.01
 )
 
+st.sidebar.info("""
+**Gamma (γ)** representa a importância das recompensas futuras.
+
+Como o objetivo da Athena é apoiar a permanência feminina em STEM, esse valor ajuda o agente a considerar impactos de longo prazo.
+""")
+
 epsilon = st.sidebar.slider(
-    "Epsilon — exploração",
+    "Epsilon (ε) — exploração",
     0.00,
     1.00,
     DEFAULT_EPSILON,
     0.01
 )
 
+st.sidebar.info("""
+**Epsilon (ε)** controla o equilíbrio entre testar novas estratégias e usar as que já deram bons resultados.
+
+Com ε = 0,20, a Athena explora novas possibilidades em cerca de 20% dos casos.
+""")
+
 st.sidebar.caption(
-    "Esses parâmetros são exibidos para fins acadêmicos. "
-    "Eles controlam como o agente aprende a escolher intervenções."
+    "Esses parâmetros pertencem ao algoritmo de Q-Learning e são exibidos para fins acadêmicos."
 )
 
 if st.sidebar.button("🔄 Reiniciar aprendizado"):
@@ -507,8 +523,7 @@ with tab2:
             indicaria_athena=indicaria_athena,
             sentiu_exposicao=sentiu_exposicao,
             achou_inutil=achou_inutil,
-            pretende_desistir=pretende_desistir,
-            bonus_permanencia=0
+            pretende_desistir=pretende_desistir
         )
 
         recompensa_total = (
