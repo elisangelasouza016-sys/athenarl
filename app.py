@@ -27,14 +27,6 @@ st.markdown("""
     font-size: 1.1rem;
 }
 
-.card {
-    padding: 18px;
-    border-radius: 12px;
-    background-color: #FAFAFA;
-    border-left: 6px solid #6B5B95;
-    margin-bottom: 15px;
-}
-
 .soft-card {
     padding: 18px;
     border-radius: 12px;
@@ -43,9 +35,12 @@ st.markdown("""
     margin-bottom: 15px;
 }
 
-.small-text {
-    font-size: 0.9rem;
-    color: #666;
+.info-card {
+    padding: 18px;
+    border-radius: 12px;
+    background-color: #FAFAFA;
+    border-left: 6px solid #6B5B95;
+    margin-bottom: 15px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -124,7 +119,7 @@ ACTION_MESSAGES = {
     ),
     "Encaminhamento institucional": (
         "Pela natureza da situação, pode ser importante procurar um canal institucional "
-        "de apoio, como coordenação, professor responsável, setor de acolhimento, RH, "
+        "de apoio, como coordenação, professor responsável, setor de acolhimento, RH "
         "ou canal formal de denúncia."
     ),
     "Nenhuma intervenção": (
@@ -161,6 +156,7 @@ def inicializar_q_table():
     q_table.loc["Estereótipo de gênero", "Material educativo"] = 1.0
     q_table.loc["Isolamento", "Grupo de apoio"] = 1.0
     q_table.loc["Assédio", "Encaminhamento institucional"] = 1.2
+    q_table.loc["Comentário sobre aparência", "Acolhimento individual"] = 1.0
     q_table.loc["Síndrome do impostor", "Acolhimento individual"] = 1.0
     q_table.loc["Ambiente saudável", "Nenhuma intervenção"] = 1.0
 
@@ -168,6 +164,11 @@ def inicializar_q_table():
 
 
 def escolher_acao(estado, q_table, epsilon):
+    """
+    Política epsilon-greedy:
+    - Exploração: testa uma intervenção aleatória.
+    - Explotação: escolhe a intervenção com maior valor Q.
+    """
     if np.random.rand() < epsilon:
         acao = np.random.choice(ACTIONS)
         politica = "Exploração"
@@ -186,26 +187,36 @@ def calcular_recompensa_impacto(
     indicaria_athena=False,
     sentiu_exposicao=False,
     achou_inutil=False,
-    pretende_desistir=False
+    pretende_desistir=False,
+    bonus_permanencia=0
 ):
     recompensa = 0
 
     if sentiu_acolhimento:
         recompensa += 2
+
     if entendeu_situacao:
         recompensa += 1
+
     if pretende_continuar:
         recompensa += 3
+
     if buscou_apoio:
         recompensa += 2
+
     if indicaria_athena:
         recompensa += 1
+
     if sentiu_exposicao:
         recompensa -= 2
+
     if achou_inutil:
         recompensa -= 2
+
     if pretende_desistir:
         recompensa -= 5
+
+    recompensa += bonus_permanencia
 
     return recompensa
 
@@ -230,6 +241,7 @@ def registrar_episodio(
     politica,
     recompensa_usuario,
     recompensa_impacto,
+    recompensa_permanencia,
     recompensa_total,
     q_antigo,
     q_novo,
@@ -243,6 +255,7 @@ def registrar_episodio(
         "Política": politica,
         "Avaliação da usuária": recompensa_usuario,
         "Impacto percebido": recompensa_impacto,
+        "Permanência STEM": recompensa_permanencia,
         "Recompensa total": recompensa_total,
         "Q antigo": round(q_antigo, 4),
         "Q novo": round(q_novo, 4),
@@ -278,7 +291,6 @@ if "ultima_acao" not in st.session_state:
 
 if "ultima_politica" not in st.session_state:
     st.session_state.ultima_politica = None
-
 
 # =========================
 # SIDEBAR
@@ -330,7 +342,6 @@ if st.sidebar.button("🔄 Reiniciar aprendizado"):
     st.session_state.ultima_politica = None
     st.rerun()
 
-
 # =========================
 # CABEÇALHO
 # =========================
@@ -352,7 +363,6 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📚 Recursos",
     "🔬 Painel Acadêmico"
 ])
-
 
 # =========================
 # ABA 1 — APOIO
@@ -417,7 +427,6 @@ with tab1:
             "acompanhamento institucional, psicológico ou jurídico quando necessário."
         )
 
-
 # =========================
 # ABA 2 — AVALIAÇÃO
 # =========================
@@ -461,13 +470,34 @@ with tab2:
             sentiu_acolhimento = st.checkbox("Senti acolhimento com a orientação")
             entendeu_situacao = st.checkbox("Entendi melhor a situação vivida")
             pretende_continuar = st.checkbox("Sinto que consigo continuar em STEM")
-            buscou_apoio = st.checkbox("Pretendo buscar apoio ou mentoria")
+            buscou_apoio = st.checkbox("Pretendo buscar apoio, mentoria ou rede de mulheres")
 
         with col2:
             indicaria_athena = st.checkbox("Indicaria a Athena para outra mulher")
             sentiu_exposicao = st.checkbox("Senti exposição ou desconforto")
             achou_inutil = st.checkbox("A orientação não ajudou")
             pretende_desistir = st.checkbox("Ainda penso em desistir ou me afastar")
+
+        st.markdown("### Permanência e pertencimento em STEM")
+
+        motivacao_stem = st.radio(
+            "Após essa orientação, como você se sente em relação à sua permanência em STEM?",
+            [
+                "Muito mais motivada (+3)",
+                "Mais motivada (+2)",
+                "Sem mudança (0)",
+                "Menos motivada (-2)"
+            ]
+        )
+
+        motivacao_map = {
+            "Muito mais motivada (+3)": 3,
+            "Mais motivada (+2)": 2,
+            "Sem mudança (0)": 0,
+            "Menos motivada (-2)": -2
+        }
+
+        recompensa_permanencia = motivacao_map[motivacao_stem]
 
         recompensa_impacto = calcular_recompensa_impacto(
             sentiu_acolhimento=sentiu_acolhimento,
@@ -477,10 +507,15 @@ with tab2:
             indicaria_athena=indicaria_athena,
             sentiu_exposicao=sentiu_exposicao,
             achou_inutil=achou_inutil,
-            pretende_desistir=pretende_desistir
+            pretende_desistir=pretende_desistir,
+            bonus_permanencia=0
         )
 
-        recompensa_total = recompensa_usuario + recompensa_impacto
+        recompensa_total = (
+            recompensa_usuario
+            + recompensa_impacto
+            + recompensa_permanencia
+        )
 
         if st.button("Enviar avaliação", use_container_width=True):
             proximo_estado = simular_proximo_estado()
@@ -502,14 +537,16 @@ with tab2:
                 politica=st.session_state.ultima_politica,
                 recompensa_usuario=recompensa_usuario,
                 recompensa_impacto=recompensa_impacto,
+                recompensa_permanencia=recompensa_permanencia,
                 recompensa_total=recompensa_total,
                 q_antigo=q_antigo,
                 q_novo=q_novo,
                 proximo_estado=proximo_estado
             )
 
-            st.success("Obrigada. Sua avaliação ajuda a Athena a oferecer apoios cada vez mais adequados.")
-
+            st.success(
+                "Obrigada. Sua avaliação ajuda a Athena a oferecer apoios cada vez mais adequados."
+            )
 
 # =========================
 # ABA 3 — EVOLUÇÃO
@@ -533,6 +570,7 @@ with tab3:
                     "Intervenção",
                     "Avaliação da usuária",
                     "Impacto percebido",
+                    "Permanência STEM",
                     "Recompensa total"
                 ]
             ],
@@ -541,9 +579,11 @@ with tab3:
 
         st.markdown("### Evolução da recompensa total")
         st.line_chart(df_hist["Recompensa total"])
+
+        st.markdown("### Evolução da permanência percebida")
+        st.line_chart(df_hist["Permanência STEM"])
     else:
         st.info("Ainda não há avaliações registradas.")
-
 
 # =========================
 # ABA 4 — RECURSOS
@@ -568,7 +608,6 @@ with tab4:
         "como ferramenta complementar. O encaminhamento institucional e a rede de proteção "
         "devem ser priorizados."
     )
-
 
 # =========================
 # ABA 5 — PAINEL ACADÊMICO
@@ -602,7 +641,7 @@ with tab5:
             "Ambiente de apoio à permanência feminina em STEM",
             "Categoria informada pela usuária",
             "Intervenção sugerida pelo sistema",
-            "Avaliação da usuária + impacto percebido",
+            "Avaliação da usuária + impacto percebido + permanência STEM",
             "Epsilon-greedy",
             "Um relato, uma intervenção e uma avaliação",
             "Atualização da Q-Table por Q-Learning"
@@ -636,10 +675,16 @@ with tab5:
     Q(s,a) = Q(s,a) + \alpha \cdot [r + \gamma \cdot \max Q(s',a') - Q(s,a)]
     """)
 
-    st.markdown("### Recompensa total")
+    st.markdown("### Função de recompensa")
 
     st.latex(r"""
-    R_{total} = R_{usuaria} + R_{impacto}
+    R_{total} = R_{usuaria} + R_{impacto} + R_{permanencia}
+    """)
+
+    st.markdown("""
+    A função de recompensa foi construída para refletir não apenas a utilidade imediata
+    da orientação, mas também indicadores de acolhimento, pertencimento e permanência
+    feminina em STEM.
     """)
 
     if st.session_state.historico:
