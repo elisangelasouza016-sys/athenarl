@@ -4,180 +4,218 @@ import numpy as np
 from datetime import datetime
 
 st.set_page_config(
-    page_title="Athena-RL | Q-Learning com Métrica de Impacto",
+    page_title="Athena | Apoio à Permanência Feminina em STEM",
     layout="wide",
-    page_icon="🛡️"
+    page_icon="🌷"
 )
+
+# =========================
+# ESTILO
+# =========================
 
 st.markdown("""
 <style>
 [data-testid="stSidebar"] { background-color: #F4EFF7; }
+
 .athena-title {
     color: #6B5B95;
-    font-family: 'Helvetica Neue', sans-serif;
     font-weight: bold;
 }
+
 .athena-subtitle {
     color: #FF6F61;
     font-size: 1.1rem;
 }
-.warning-card {
+
+.soft-card {
     padding: 18px;
     border-radius: 12px;
-    background-color: #FFECEA;
+    background-color: #FFF7FA;
     border-left: 6px solid #FF6F61;
-    color: #922B21;
     margin-bottom: 15px;
 }
-.success-card {
+
+.info-card {
     padding: 18px;
     border-radius: 12px;
-    background-color: #EAF2F8;
+    background-color: #FAFAFA;
     border-left: 6px solid #6B5B95;
-    color: #1F618D;
     margin-bottom: 15px;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# ============================================================
-# ESTADOS E AÇÕES
-# ============================================================
+# =========================
+# ESTADOS INTERNOS E AÇÕES
+# =========================
 
-CATEGORIES = [
-    "Discredit (Descrédito)",
-    "Stereotyping (Estereótipos)",
-    "Dominance (Dominação)",
-    "Dismissing (Desprezo)",
-    "Sexual Harassment",
-    "Threats",
-    "Maternal Insults",
-    "Objectification",
-    "Anti-LGBTQ+",
-    "Physical Appearance",
-    "Moral Condemnation",
-    "Neutral (Saudável)"
+STATES = [
+    "Descrédito técnico",
+    "Silenciamento",
+    "Estereótipo de gênero",
+    "Isolamento",
+    "Assédio",
+    "Comentário sobre aparência",
+    "Síndrome do impostor",
+    "Ambiente saudável"
 ]
 
 ACTIONS = [
-    "Silêncio Operacional",
-    "Sugerir Reescrita Técnico-Pedagógica",
-    "Alerta de Viés Social",
-    "Intervenção Educativa Coletiva",
-    "Mediação Direta (Humano)",
-    "Reportar p/ Governança Institucional"
+    "Acolhimento individual",
+    "Resposta sugerida",
+    "Material educativo",
+    "Mentoria",
+    "Grupo de apoio",
+    "Encaminhamento institucional",
+    "Nenhuma intervenção"
 ]
+
+OPCOES_USUARIA = [
+    "💬 Minha opinião ou contribuição foi desconsiderada",
+    "🧠 Minha capacidade técnica foi questionada",
+    "🚫 Senti-me excluída ou isolada",
+    "⚖️ Vivi uma situação de preconceito ou estereótipo",
+    "⚠️ Passei por uma situação de assédio ou constrangimento",
+    "🌱 Estou enfrentando insegurança ou síndrome do impostor",
+    "🤝 Gostaria apenas de orientação para minha trajetória",
+    "✨ Quero compartilhar uma experiência positiva"
+]
+
+MAPA_ESTADOS = {
+    "💬 Minha opinião ou contribuição foi desconsiderada": "Silenciamento",
+    "🧠 Minha capacidade técnica foi questionada": "Descrédito técnico",
+    "🚫 Senti-me excluída ou isolada": "Isolamento",
+    "⚖️ Vivi uma situação de preconceito ou estereótipo": "Estereótipo de gênero",
+    "⚠️ Passei por uma situação de assédio ou constrangimento": "Assédio",
+    "🌱 Estou enfrentando insegurança ou síndrome do impostor": "Síndrome do impostor",
+    "🤝 Gostaria apenas de orientação para minha trajetória": "Ambiente saudável",
+    "✨ Quero compartilhar uma experiência positiva": "Ambiente saudável"
+}
+
+ACTION_MESSAGES = {
+    "Acolhimento individual": (
+        "O que você relatou merece atenção. Situações assim podem afetar a confiança, "
+        "o bem-estar e o sentimento de pertencimento. Reconhecer o impacto disso já é "
+        "um passo importante para buscar apoio e preservar sua trajetória."
+    ),
+    "Resposta sugerida": (
+        "Uma resposta possível seria: “Gostaria que minha contribuição fosse analisada "
+        "pelo conteúdo técnico apresentado, sem pressupor minha capacidade ou meu lugar "
+        "nesse ambiente.”"
+    ),
+    "Material educativo": (
+        "Pode ser útil compartilhar ou construir um material educativo sobre como esse "
+        "tipo de comportamento afeta a permanência de mulheres em STEM. A conscientização "
+        "ajuda o grupo a reconhecer padrões que muitas vezes são naturalizados."
+    ),
+    "Mentoria": (
+        "Conversar com uma mentora, professora, colega experiente ou profissional de "
+        "referência pode ajudar a organizar estratégias, fortalecer sua confiança e "
+        "apoiar sua continuidade na área."
+    ),
+    "Grupo de apoio": (
+        "Buscar uma rede de mulheres em tecnologia, grupo de estudos, coletivo acadêmico "
+        "ou comunidade de apoio pode reduzir o isolamento e fortalecer o sentimento de pertencimento."
+    ),
+    "Encaminhamento institucional": (
+        "Pela natureza da situação, pode ser importante procurar um canal institucional "
+        "de apoio, como coordenação, professor responsável, setor de acolhimento, RH "
+        "ou canal formal de denúncia."
+    ),
+    "Nenhuma intervenção": (
+        "Neste momento, talvez o mais adequado seja apenas registrar a experiência, observar "
+        "a evolução da situação e preservar seu bem-estar. Nem toda situação exige uma ação imediata."
+    )
+}
+
+# =========================
+# HIPERPARÂMETROS
+# =========================
 
 DEFAULT_ALPHA = 0.30
 DEFAULT_GAMMA = 0.80
 DEFAULT_EPSILON = 0.20
 
-# ============================================================
+# =========================
 # FUNÇÕES
-# ============================================================
+# =========================
 
 def inicializar_q_table():
     np.random.seed(42)
+
     q_data = np.random.uniform(
         low=0.1,
         high=0.5,
-        size=(len(CATEGORIES), len(ACTIONS))
+        size=(len(STATES), len(ACTIONS))
     )
 
-    q_table = pd.DataFrame(q_data, index=CATEGORIES, columns=ACTIONS)
+    q_table = pd.DataFrame(q_data, index=STATES, columns=ACTIONS)
 
-    q_table.loc["Neutral (Saudável)", "Silêncio Operacional"] = 1.20
-    q_table.loc["Discredit (Descrédito)", "Sugerir Reescrita Técnico-Pedagógica"] = 1.00
-    q_table.loc["Stereotyping (Estereótipos)", "Alerta de Viés Social"] = 1.00
-    q_table.loc["Dominance (Dominação)", "Mediação Direta (Humano)"] = 1.00
-    q_table.loc["Sexual Harassment", "Reportar p/ Governança Institucional"] = 1.30
-    q_table.loc["Threats", "Reportar p/ Governança Institucional"] = 1.40
+    q_table.loc["Descrédito técnico", "Resposta sugerida"] = 1.0
+    q_table.loc["Silenciamento", "Mentoria"] = 1.0
+    q_table.loc["Estereótipo de gênero", "Material educativo"] = 1.0
+    q_table.loc["Isolamento", "Grupo de apoio"] = 1.0
+    q_table.loc["Assédio", "Encaminhamento institucional"] = 1.2
+    q_table.loc["Comentário sobre aparência", "Acolhimento individual"] = 1.0
+    q_table.loc["Síndrome do impostor", "Acolhimento individual"] = 1.0
+    q_table.loc["Ambiente saudável", "Nenhuma intervenção"] = 1.0
 
     return q_table
 
 
-def classificar_estado(texto):
-    texto = texto.lower()
-
-    if any(p in texto for p in ["ameaça", "vou te pegar", "cuidado comigo", "você vai se arrepender"]):
-        return "Threats"
-
-    if any(p in texto for p in ["sair comigo", "encontrar depois", "te contrato se", "jantar comigo"]):
-        return "Sexual Harassment"
-
-    if any(p in texto for p in ["batom", "bonita", "linda", "foto", "aparência", "corpo"]):
-        return "Physical Appearance"
-
-    if any(p in texto for p in ["mulher geralmente", "coisa de mulher", "homem entende mais", "menina não"]):
-        return "Stereotyping (Estereótipos)"
-
-    if any(p in texto for p in ["amadora", "amador", "não entende", "não sabe programar", "sem capacidade"]):
-        return "Discredit (Descrédito)"
-
-    if any(p in texto for p in ["cale", "fica quieta", "ignore ela", "eu assumo daqui", "do meu jeito"]):
-        return "Dominance (Dominação)"
-
-    if any(p in texto for p in ["isso é besteira", "mimimi", "drama", "exagero"]):
-        return "Dismissing (Desprezo)"
-
-    if any(p in texto for p in ["mãe não dá conta", "vai cuidar dos filhos", "maternidade atrapalha"]):
-        return "Maternal Insults"
-
-    if any(p in texto for p in ["gostosa", "delícia", "objeto"]):
-        return "Objectification"
-
-    if any(p in texto for p in ["lgbt", "gay", "lésbica", "trans"]):
-        return "Anti-LGBTQ+"
-
-    if any(p in texto for p in ["imoral", "sem valor", "vergonha", "não presta"]):
-        return "Moral Condemnation"
-
-    return "Neutral (Saudável)"
-
-
 def escolher_acao(estado, q_table, epsilon):
+    """
+    Política epsilon-greedy:
+    - Exploração: testa uma intervenção aleatória.
+    - Explotação: escolhe a intervenção com maior valor Q.
+    """
     if np.random.rand() < epsilon:
-        return np.random.choice(ACTIONS), "Exploração"
-    return q_table.loc[estado].idxmax(), "Explotação"
+        acao = np.random.choice(ACTIONS)
+        politica = "Exploração"
+    else:
+        acao = q_table.loc[estado].idxmax()
+        politica = "Explotação"
+
+    return acao, politica
 
 
-def calcular_impacto(
-    comentario_editado=False,
-    discussao_saudavel=False,
-    pr_aceito=False,
-    nova_denuncia=False,
-    reincidencia=False,
-    abandono_discussao=False,
-    pessoa_afetada_continua=False,
-    novo_pr_pessoa_afetada=False
+def calcular_recompensa_impacto(
+    sentiu_acolhimento=False,
+    entendeu_situacao=False,
+    pretende_continuar=False,
+    buscou_apoio=False,
+    indicaria_athena=False,
+    sentiu_exposicao=False,
+    achou_inutil=False,
+    pretende_desistir=False
 ):
-    impacto = 0
+    recompensa = 0
 
-    if comentario_editado:
-        impacto += 2
+    if sentiu_acolhimento:
+        recompensa += 2
 
-    if discussao_saudavel:
-        impacto += 1
+    if entendeu_situacao:
+        recompensa += 1
 
-    if pr_aceito:
-        impacto += 2
+    if pretende_continuar:
+        recompensa += 3
 
-    if pessoa_afetada_continua:
-        impacto += 3
+    if buscou_apoio:
+        recompensa += 2
 
-    if novo_pr_pessoa_afetada:
-        impacto += 5
+    if indicaria_athena:
+        recompensa += 1
 
-    if nova_denuncia:
-        impacto -= 3
+    if sentiu_exposicao:
+        recompensa -= 2
 
-    if reincidencia:
-        impacto -= 2
+    if achou_inutil:
+        recompensa -= 2
 
-    if abandono_discussao:
-        impacto -= 5
+    if pretende_desistir:
+        recompensa -= 5
 
-    return impacto
+    return recompensa
 
 
 def atualizar_q_learning(q_table, estado, acao, recompensa_total, proximo_estado, alpha, gamma):
@@ -193,17 +231,14 @@ def atualizar_q_learning(q_table, estado, acao, recompensa_total, proximo_estado
     return q_antigo, q_novo, melhor_q_futuro
 
 
-def simular_proximo_estado():
-    return np.random.choice(CATEGORIES)
-
-
 def registrar_episodio(
-    texto,
+    relato,
     estado,
     acao,
-    modo,
-    feedback_humano,
-    impacto,
+    politica,
+    recompensa_usuario,
+    recompensa_impacto,
+    recompensa_permanencia,
     recompensa_total,
     q_antigo,
     q_novo,
@@ -211,12 +246,13 @@ def registrar_episodio(
 ):
     st.session_state.historico.append({
         "Data/Hora": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-        "Texto": texto,
+        "Relato": relato,
         "Estado": estado,
-        "Ação": acao,
-        "Política": modo,
-        "Feedback humano": feedback_humano,
-        "Impacto observado": impacto,
+        "Intervenção": acao,
+        "Política": politica,
+        "Avaliação da usuária": recompensa_usuario,
+        "Impacto percebido": recompensa_impacto,
+        "Permanência STEM": recompensa_permanencia,
         "Recompensa total": recompensa_total,
         "Q antigo": round(q_antigo, 4),
         "Q novo": round(q_novo, 4),
@@ -224,9 +260,13 @@ def registrar_episodio(
     })
 
 
-# ============================================================
+def simular_proximo_estado():
+    return np.random.choice(STATES)
+
+
+# =========================
 # SESSION STATE
-# ============================================================
+# =========================
 
 if "q_table" not in st.session_state:
     st.session_state.q_table = inicializar_q_table()
@@ -234,212 +274,265 @@ if "q_table" not in st.session_state:
 if "historico" not in st.session_state:
     st.session_state.historico = []
 
+if "ultimo_relato" not in st.session_state:
+    st.session_state.ultimo_relato = ""
+
 if "ultimo_estado" not in st.session_state:
     st.session_state.ultimo_estado = None
+
+if "ultima_opcao_usuario" not in st.session_state:
+    st.session_state.ultima_opcao_usuario = None
 
 if "ultima_acao" not in st.session_state:
     st.session_state.ultima_acao = None
 
-if "ultimo_modo" not in st.session_state:
-    st.session_state.ultimo_modo = None
+if "ultima_politica" not in st.session_state:
+    st.session_state.ultima_politica = None
 
-if "ultimo_texto" not in st.session_state:
-    st.session_state.ultimo_texto = None
-
-# ============================================================
+# =========================
 # SIDEBAR
-# ============================================================
+# =========================
 
-st.sidebar.markdown("## 🛡️ Athena-RL")
-st.sidebar.markdown("**Q-Learning + Feedback Humano + Métrica de Impacto**")
+st.sidebar.markdown("## 🌷 Athena")
+st.sidebar.markdown("**Apoio à permanência feminina em STEM**")
 
 st.sidebar.divider()
 
+st.sidebar.markdown("### 🔬 Parâmetros do Aprendizado")
+
 alpha = st.sidebar.slider(
-    "Alpha — taxa de aprendizado",
+    "Alpha (α) — taxa de aprendizado",
     0.01,
     1.00,
     DEFAULT_ALPHA,
     0.01
 )
 
+st.sidebar.info("""
+**Alpha (α)** controla o quanto a Athena aprende com cada nova experiência.
+
+Valores maiores fazem o sistema mudar mais rapidamente após uma avaliação.
+
+Valores menores tornam o aprendizado mais gradual e estável.
+""")
+
 gamma = st.sidebar.slider(
-    "Gamma — fator de desconto",
+    "Gamma (γ) — impacto futuro",
     0.00,
     1.00,
     DEFAULT_GAMMA,
     0.01
 )
 
+st.sidebar.info("""
+**Gamma (γ)** representa a importância das recompensas futuras.
+
+Como o objetivo da Athena é apoiar a permanência feminina em STEM, esse valor ajuda o agente a considerar impactos de longo prazo.
+""")
+
 epsilon = st.sidebar.slider(
-    "Epsilon — exploração",
+    "Epsilon (ε) — exploração",
     0.00,
     1.00,
     DEFAULT_EPSILON,
     0.01
 )
 
-st.sidebar.info(
-    "Alpha define quanto o agente aprende. "
-    "Gamma considera recompensas futuras. "
-    "Epsilon permite explorar ações novas."
+st.sidebar.info("""
+**Epsilon (ε)** controla o equilíbrio entre testar novas estratégias e usar as que já deram bons resultados.
+
+Com ε = 0,20, a Athena explora novas possibilidades em cerca de 20% dos casos.
+""")
+
+st.sidebar.caption(
+    "Esses parâmetros pertencem ao algoritmo de Q-Learning e são exibidos para fins acadêmicos."
 )
 
 if st.sidebar.button("🔄 Reiniciar aprendizado"):
     st.session_state.q_table = inicializar_q_table()
     st.session_state.historico = []
+    st.session_state.ultimo_relato = ""
     st.session_state.ultimo_estado = None
+    st.session_state.ultima_opcao_usuario = None
     st.session_state.ultima_acao = None
-    st.session_state.ultimo_modo = None
-    st.session_state.ultimo_texto = None
+    st.session_state.ultima_politica = None
     st.rerun()
 
-# ============================================================
-# INTERFACE
-# ============================================================
+# =========================
+# CABEÇALHO
+# =========================
 
 st.markdown(
-    "<h1 class='athena-title'>🛡️ Athena-RL: Agente de Mediação com Aprendizado por Reforço</h1>",
+    "<h1 class='athena-title'>🌷 Athena</h1>",
     unsafe_allow_html=True
 )
 
 st.markdown(
-    "<p class='athena-subtitle'>"
-    "O agente aprende com feedback humano e com métricas reais de impacto no ambiente."
-    "</p>",
+    "<p class='athena-subtitle'>Apoio à Permanência Feminina em STEM</p>",
     unsafe_allow_html=True
 )
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "🔍 Auditoria",
-    "🎯 Impacto",
-    "📊 Q-Table",
-    "🧠 Histórico",
-    "📚 Explicação"
+    "🌷 Apoio",
+    "⭐ Avaliação",
+    "📈 Evolução",
+    "📚 Recursos",
+    "🔬 Painel Acadêmico"
 ])
 
-# ============================================================
-# ABA 1 — AUDITORIA
-# ============================================================
+# =========================
+# ABA 1 — APOIO
+# =========================
 
 with tab1:
-    st.subheader("1. Auditoria da mensagem")
+    st.markdown("""
+    ## 🌷 Bem-vinda à Athena
 
-    comentario = st.text_area(
-        "Insira uma mensagem simulada de fórum, issue ou pull request:",
-        height=140,
-        placeholder="Exemplo: Você não entende muito de backend, melhor alguém mais experiente revisar."
+    Um espaço seguro de apoio para mulheres em STEM.
+
+    Compartilhe uma situação vivenciada em sua trajetória acadêmica ou profissional
+    e receba orientações, recursos e estratégias de apoio que podem ajudar no seu
+    desenvolvimento, bem-estar e permanência na área.
+    """)
+
+    st.divider()
+
+    relato = st.text_area(
+        "Conte um pouco sobre o que aconteceu:",
+        height=150,
+        placeholder=(
+            "Você pode compartilhar uma situação, desafio, dúvida ou experiência "
+            "vivenciada durante sua trajetória acadêmica ou profissional."
+        )
     )
 
-    if st.button("Analisar mensagem", use_container_width=True):
-        if comentario.strip():
-            estado = classificar_estado(comentario)
-            acao, modo = escolher_acao(estado, st.session_state.q_table, epsilon)
+    opcao_escolhida = st.selectbox(
+        "Qual situação mais se aproxima da sua experiência?",
+        OPCOES_USUARIA
+    )
 
-            st.session_state.ultimo_estado = estado
-            st.session_state.ultima_acao = acao
-            st.session_state.ultimo_modo = modo
-            st.session_state.ultimo_texto = comentario
+    estado = MAPA_ESTADOS[opcao_escolhida]
+
+    if st.button("💜 Receber orientação da Athena", use_container_width=True):
+        acao, politica = escolher_acao(
+            estado=estado,
+            q_table=st.session_state.q_table,
+            epsilon=epsilon
+        )
+
+        st.session_state.ultimo_relato = relato
+        st.session_state.ultimo_estado = estado
+        st.session_state.ultima_opcao_usuario = opcao_escolhida
+        st.session_state.ultima_acao = acao
+        st.session_state.ultima_politica = politica
 
     if st.session_state.ultimo_estado:
-        estado = st.session_state.ultimo_estado
-        acao = st.session_state.ultima_acao
-        modo = st.session_state.ultimo_modo
+        st.markdown("### 💜 Sugestão da Athena")
 
-        if estado == "Neutral (Saudável)":
-            st.markdown(
-                f"""
-                <div class='success-card'>
-                ✅ <b>Estado identificado:</b> {estado}<br>
-                🤖 <b>Ação escolhida:</b> {acao}<br>
-                🎯 <b>Política usada:</b> {modo}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-        else:
-            st.markdown(
-                f"""
-                <div class='warning-card'>
-                ⚠️ <b>Estado identificado:</b> {estado}<br>
-                🤖 <b>Ação escolhida:</b> {acao}<br>
-                🎯 <b>Política usada:</b> {modo}
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+        st.markdown(
+            f"""
+            <div class='soft-card'>
+            {ACTION_MESSAGES[st.session_state.ultima_acao]}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
-        st.info("Agora vá para a aba **Impacto** para aplicar feedback humano e métricas observáveis.")
+        st.caption(
+            "As orientações da Athena são sugestões de apoio e não substituem "
+            "acompanhamento institucional, psicológico ou jurídico quando necessário."
+        )
 
-# ============================================================
-# ABA 2 — IMPACTO
-# ============================================================
+# =========================
+# ABA 2 — AVALIAÇÃO
+# =========================
 
 with tab2:
-    st.subheader("2. Feedback humano + Métrica de impacto")
+    st.subheader("⭐ Como essa orientação ajudou?")
 
     if not st.session_state.ultimo_estado:
-        st.warning("Analise uma mensagem primeiro na aba Auditoria.")
+        st.warning("Primeiro receba uma orientação na aba Apoio.")
     else:
-        st.markdown("### Feedback humano direto")
+        st.markdown("""
+        Sua avaliação ajuda a Athena a melhorar as próximas orientações.
+        """)
 
-        feedback_label = st.radio(
-            "Como a pessoa avaliadora julgou a ação do Athena?",
+        avaliacao = st.radio(
+            "Como você avalia a orientação recebida?",
             [
-                "Excelente (+1.0)",
-                "Adequada (+0.5)",
-                "Neutra (0.0)",
-                "Exagerada (-0.5)",
-                "Prejudicial (-1.0)"
+                "Muito útil (+2)",
+                "Útil (+1)",
+                "Neutra (0)",
+                "Pouco útil (-1)",
+                "Inútil (-2)"
             ]
         )
 
-        feedback_map = {
-            "Excelente (+1.0)": 1.0,
-            "Adequada (+0.5)": 0.5,
-            "Neutra (0.0)": 0.0,
-            "Exagerada (-0.5)": -0.5,
-            "Prejudicial (-1.0)": -1.0
+        avaliacao_map = {
+            "Muito útil (+2)": 2,
+            "Útil (+1)": 1,
+            "Neutra (0)": 0,
+            "Pouco útil (-1)": -1,
+            "Inútil (-2)": -2
         }
 
-        feedback_humano = feedback_map[feedback_label]
+        recompensa_usuario = avaliacao_map[avaliacao]
 
-        st.markdown("### Métricas observáveis do ambiente")
+        st.markdown("### Impacto percebido")
 
         col1, col2 = st.columns(2)
 
         with col1:
-            comentario_editado = st.checkbox("Comentário foi editado/reformulado (+2)")
-            discussao_saudavel = st.checkbox("Discussão continuou saudável (+1)")
-            pr_aceito = st.checkbox("Pull Request foi aceito (+2)")
-            pessoa_afetada_continua = st.checkbox("Pessoa afetada continuou participando (+3)")
+            sentiu_acolhimento = st.checkbox("Senti acolhimento com a orientação")
+            entendeu_situacao = st.checkbox("Entendi melhor a situação vivida")
+            pretende_continuar = st.checkbox("Sinto que consigo continuar em STEM")
+            buscou_apoio = st.checkbox("Pretendo buscar apoio, mentoria ou rede de mulheres")
 
         with col2:
-            novo_pr_pessoa_afetada = st.checkbox("Pessoa afetada enviou novo PR depois (+5)")
-            nova_denuncia = st.checkbox("Houve nova denúncia (-3)")
-            reincidencia = st.checkbox("Usuário reincidiu no comportamento (-2)")
-            abandono_discussao = st.checkbox("Pessoa afetada abandonou a discussão (-5)")
+            indicaria_athena = st.checkbox("Indicaria a Athena para outra mulher")
+            sentiu_exposicao = st.checkbox("Senti exposição ou desconforto")
+            achou_inutil = st.checkbox("A orientação não ajudou")
+            pretende_desistir = st.checkbox("Ainda penso em desistir ou me afastar")
 
-        impacto = calcular_impacto(
-            comentario_editado=comentario_editado,
-            discussao_saudavel=discussao_saudavel,
-            pr_aceito=pr_aceito,
-            nova_denuncia=nova_denuncia,
-            reincidencia=reincidencia,
-            abandono_discussao=abandono_discussao,
-            pessoa_afetada_continua=pessoa_afetada_continua,
-            novo_pr_pessoa_afetada=novo_pr_pessoa_afetada
+        st.markdown("### Permanência e pertencimento em STEM")
+
+        motivacao_stem = st.radio(
+            "Após essa orientação, como você se sente em relação à sua permanência em STEM?",
+            [
+                "Muito mais motivada (+3)",
+                "Mais motivada (+2)",
+                "Sem mudança (0)",
+                "Menos motivada (-2)"
+            ]
         )
 
-        recompensa_total = feedback_humano + impacto
+        motivacao_map = {
+            "Muito mais motivada (+3)": 3,
+            "Mais motivada (+2)": 2,
+            "Sem mudança (0)": 0,
+            "Menos motivada (-2)": -2
+        }
 
-        st.markdown("### Recompensa calculada")
+        recompensa_permanencia = motivacao_map[motivacao_stem]
 
-        st.write(f"Feedback humano: **{feedback_humano}**")
-        st.write(f"Impacto observado: **{impacto}**")
-        st.write(f"Recompensa total: **{recompensa_total}**")
+        recompensa_impacto = calcular_recompensa_impacto(
+            sentiu_acolhimento=sentiu_acolhimento,
+            entendeu_situacao=entendeu_situacao,
+            pretende_continuar=pretende_continuar,
+            buscou_apoio=buscou_apoio,
+            indicaria_athena=indicaria_athena,
+            sentiu_exposicao=sentiu_exposicao,
+            achou_inutil=achou_inutil,
+            pretende_desistir=pretende_desistir
+        )
 
-        if st.button("Aplicar recompensa e atualizar Q-Table", use_container_width=True):
+        recompensa_total = (
+            recompensa_usuario
+            + recompensa_impacto
+            + recompensa_permanencia
+        )
+
+        if st.button("Enviar avaliação", use_container_width=True):
             proximo_estado = simular_proximo_estado()
 
             q_antigo, q_novo, melhor_q_futuro = atualizar_q_learning(
@@ -453,12 +546,13 @@ with tab2:
             )
 
             registrar_episodio(
-                texto=st.session_state.ultimo_texto,
+                relato=st.session_state.ultimo_relato,
                 estado=st.session_state.ultimo_estado,
                 acao=st.session_state.ultima_acao,
-                modo=st.session_state.ultimo_modo,
-                feedback_humano=feedback_humano,
-                impacto=impacto,
+                politica=st.session_state.ultima_politica,
+                recompensa_usuario=recompensa_usuario,
+                recompensa_impacto=recompensa_impacto,
+                recompensa_permanencia=recompensa_permanencia,
                 recompensa_total=recompensa_total,
                 q_antigo=q_antigo,
                 q_novo=q_novo,
@@ -466,74 +560,85 @@ with tab2:
             )
 
             st.success(
-                f"Q-Table atualizada: Q antigo {q_antigo:.4f} → Q novo {q_novo:.4f}"
+                "Obrigada. Sua avaliação ajuda a Athena a oferecer apoios cada vez mais adequados."
             )
 
-# ============================================================
-# ABA 3 — Q-TABLE
-# ============================================================
+# =========================
+# ABA 3 — EVOLUÇÃO
+# =========================
 
 with tab3:
-    st.subheader("3. Matriz de aprendizado — Q-Table")
+    st.subheader("📈 Evolução das orientações")
 
-    st.dataframe(st.session_state.q_table, use_container_width=True)
-
-    estado_visualizar = st.selectbox(
-        "Escolha um estado para visualizar:",
-        CATEGORIES
-    )
-
-    st.bar_chart(st.session_state.q_table.loc[estado_visualizar])
-
-    melhor_acao = st.session_state.q_table.loc[estado_visualizar].idxmax()
-    melhor_valor = st.session_state.q_table.loc[estado_visualizar].max()
-
-    st.info(
-        f"Ação preferida para **{estado_visualizar}**: "
-        f"**{melhor_acao}** | Q = **{melhor_valor:.4f}**"
-    )
-
-# ============================================================
-# ABA 4 — HISTÓRICO
-# ============================================================
-
-with tab4:
-    st.subheader("4. Histórico de episódios")
+    st.markdown("""
+    Este painel mostra como a Athena registra as avaliações e melhora suas sugestões ao longo do tempo.
+    """)
 
     if st.session_state.historico:
         df_hist = pd.DataFrame(st.session_state.historico)
-        st.dataframe(df_hist, use_container_width=True)
+
+        st.dataframe(
+            df_hist[
+                [
+                    "Data/Hora",
+                    "Estado",
+                    "Intervenção",
+                    "Avaliação da usuária",
+                    "Impacto percebido",
+                    "Permanência STEM",
+                    "Recompensa total"
+                ]
+            ],
+            use_container_width=True
+        )
 
         st.markdown("### Evolução da recompensa total")
         st.line_chart(df_hist["Recompensa total"])
 
-        st.markdown("### Evolução do valor Q")
-        st.line_chart(df_hist["Q novo"])
+        st.markdown("### Evolução da permanência percebida")
+        st.line_chart(df_hist["Permanência STEM"])
     else:
-        st.info("Nenhum episódio registrado ainda.")
+        st.info("Ainda não há avaliações registradas.")
 
-# ============================================================
-# ABA 5 — EXPLICAÇÃO
-# ============================================================
+# =========================
+# ABA 4 — RECURSOS
+# =========================
 
-with tab5:
-    st.subheader("5. Explicação acadêmica")
+with tab4:
+    st.subheader("📚 Recursos de apoio")
 
     st.markdown("""
-    O Athena-RL é uma arquitetura híbrida.
+    A Athena pode apoiar mulheres em STEM com diferentes caminhos:
 
-    A primeira camada faz a percepção do texto e transforma a mensagem em um estado.
-    Essa etapa pode ser feita por regras, PLN ou modelo supervisionado.
-
-    O Aprendizado por Reforço ocorre na camada de decisão.
-
-    O agente observa o estado, escolhe uma ação, recebe uma recompensa e atualiza sua Q-Table.
-    A recompensa não vem apenas do feedback humano direto, mas também de métricas observáveis
-    do ambiente, como edição do comentário, continuidade saudável da discussão, reincidência,
-    novas denúncias ou abandono da participação.
+    - **Acolhimento individual:** reconhecer a experiência vivida e reduzir o isolamento.
+    - **Resposta sugerida:** ajudar a formular uma resposta cuidadosa e assertiva.
+    - **Material educativo:** explicar por que certos comportamentos prejudicam a permanência feminina.
+    - **Mentoria:** incentivar contato com pessoas de referência.
+    - **Grupo de apoio:** fortalecer redes de pertencimento.
+    - **Encaminhamento institucional:** orientar busca por canais formais quando necessário.
     """)
 
-    st.markdown("### Elementos do Aprendizado por Reforço")
+    st.info(
+        "Em situações graves, como assédio, ameaça ou violência, a Athena deve ser vista "
+        "como ferramenta complementar. O encaminhamento institucional e a rede de proteção "
+        "devem ser priorizados."
+    )
+
+# =========================
+# ABA 5 — PAINEL ACADÊMICO
+# =========================
+
+with tab5:
+    st.subheader("🔬 Painel Acadêmico — Aprendizado por Reforço")
+
+    st.markdown("""
+    Esta aba explica o funcionamento técnico do projeto para fins acadêmicos.
+
+    A Athena não utiliza Aprendizado por Reforço para classificar textos.
+    A usuária informa a situação que mais se aproxima de sua experiência.
+
+    O Aprendizado por Reforço ocorre na escolha da intervenção mais adequada.
+    """)
 
     df_rl = pd.DataFrame({
         "Elemento": [
@@ -543,22 +648,41 @@ with tab5:
             "Ação",
             "Recompensa",
             "Política",
-            "Aprendizado",
-            "Episódio"
+            "Episódio",
+            "Aprendizado"
         ],
-        "No Athena-RL": [
+        "No Athena": [
             "Sistema Athena",
-            "GitHub, fórum técnico ou comunidade STEM",
-            "Categoria da interação textual",
-            "Estratégia de mediação",
-            "Feedback humano + métrica de impacto",
+            "Ambiente de apoio à permanência feminina em STEM",
+            "Categoria informada pela usuária",
+            "Intervenção sugerida pelo sistema",
+            "Avaliação da usuária + impacto percebido + permanência STEM",
             "Epsilon-greedy",
-            "Atualização da Q-Table",
-            "Uma mensagem analisada, uma ação tomada e uma consequência observada"
+            "Um relato, uma intervenção e uma avaliação",
+            "Atualização da Q-Table por Q-Learning"
         ]
     })
 
     st.table(df_rl)
+
+    st.markdown("### Q-Table")
+
+    st.dataframe(st.session_state.q_table, use_container_width=True)
+
+    estado_visualizar = st.selectbox(
+        "Visualizar valores Q para o estado:",
+        STATES
+    )
+
+    st.bar_chart(st.session_state.q_table.loc[estado_visualizar])
+
+    melhor_acao = st.session_state.q_table.loc[estado_visualizar].idxmax()
+    melhor_valor = st.session_state.q_table.loc[estado_visualizar].max()
+
+    st.info(
+        f"Para **{estado_visualizar}**, a intervenção atualmente preferida é "
+        f"**{melhor_acao}**, com Q = **{melhor_valor:.4f}**."
+    )
 
     st.markdown("### Fórmula de Q-Learning")
 
@@ -566,30 +690,18 @@ with tab5:
     Q(s,a) = Q(s,a) + \alpha \cdot [r + \gamma \cdot \max Q(s',a') - Q(s,a)]
     """)
 
-    st.markdown("""
-    Onde:
-
-    - **s** é o estado atual;
-    - **a** é a ação tomada;
-    - **r** é a recompensa total;
-    - **s'** é o próximo estado;
-    - **α** é a taxa de aprendizado;
-    - **γ** é o fator de desconto.
-
-    A defesa central é:
-
-    **O Athena não usa Aprendizado por Reforço para classificar o texto.
-    Ele usa Aprendizado por Reforço para aprender qual ação de mediação gera melhor impacto
-    no ambiente.**
-    """)
-
-    st.markdown("### Recompensa total")
+    st.markdown("### Função de recompensa")
 
     st.latex(r"""
-    R_{total} = R_{humano} + R_{impacto}
+    R_{total} = R_{usuaria} + R_{impacto} + R_{permanencia}
     """)
 
     st.markdown("""
-    Assim, o sistema não aprende apenas com aprovação ou reprovação humana.
-    Ele aprende também com consequências observáveis da comunidade.
+    A função de recompensa foi construída para refletir não apenas a utilidade imediata
+    da orientação, mas também indicadores de acolhimento, pertencimento e permanência
+    feminina em STEM.
     """)
+
+    if st.session_state.historico:
+        st.markdown("### Histórico completo dos episódios")
+        st.dataframe(pd.DataFrame(st.session_state.historico), use_container_width=True)
